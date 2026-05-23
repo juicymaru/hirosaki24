@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>弘前24時間走 部門横断ビュー</title>
+
+<style>
+body{
+    font-family:sans-serif;
+    margin:20px;
+    background:#f5f5f5;
+}
+
+h1{
+    font-size:24px;
+}
+
+#search{
+    width:100%;
+    padding:12px;
+    font-size:16px;
+    margin-bottom:15px;
+    box-sizing:border-box;
+}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+    background:white;
+}
+
+th,td{
+    border:1px solid #ccc;
+    padding:8px;
+    text-align:left;
+    font-size:14px;
+}
+
+th{
+    background:#333;
+    color:white;
+    position:sticky;
+    top:0;
+}
+
+tr:nth-child(even){
+    background:#f9f9f9;
+}
+
+.category{
+    font-weight:bold;
+}
+
+.female{
+    color:red;
+}
+
+.updated{
+    margin-bottom:10px;
+    color:#666;
+    font-size:14px;
+}
+</style>
+</head>
+<body>
+
+<h1>弘前24時間走 横断ビュー</h1>
+
+<div class="updated" id="updated">
+更新中...
+</div>
+
+<input type="text" id="search" placeholder="名前検索">
+
+<table id="resultTable">
+    <thead>
+        <tr>
+            <th>総合順位</th>
+            <th>カテゴリ</th>
+            <th>名前</th>
+            <th>距離(km)</th>
+            <th>周回</th>
+        </tr>
+    </thead>
+    <tbody></tbody>
+</table>
+
+<script>
+
+const sources = [
+    {
+        name: "男子選手権",
+        url: "https://sokuho-nipponit.japaneast.cloudapp.azure.com/hirosaki/sokuho.php?p1=1&p2=1&p3=2_1&p4=&p5="
+    },
+    {
+        name: "女子選手権",
+        url: "https://sokuho-nipponit.japaneast.cloudapp.azure.com/hirosaki/sokuho.php?p1=1&p2=2&p3=2_2&p4=&p5="
+    },
+    {
+        name: "男子一般",
+        url: "https://sokuho-nipponit.japaneast.cloudapp.azure.com/hirosaki/sokuho.php?p1=1&p2=5&p3=2_1&p4=&p5="
+    },
+    {
+        name: "女子一般",
+        url: "https://sokuho-nipponit.japaneast.cloudapp.azure.com/hirosaki/sokuho.php?p1=1&p2=6&p3=2_2&p4=&p5="
+    }
+];
+
+async function loadData(){
+
+    const tbody = document.querySelector("#resultTable tbody");
+    tbody.innerHTML = "";
+
+    const allData = [];
+
+    for(const source of sources){
+
+        try{
+
+            // CORS回避用
+            const proxy =
+                "https://api.allorigins.win/raw?url=" +
+                encodeURIComponent(source.url);
+
+            const response = await fetch(proxy);
+            const html = await response.text();
+
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, "text/html");
+
+            const tables = doc.querySelectorAll("table");
+
+            tables.forEach(table => {
+
+                const rows = table.querySelectorAll("tr");
+
+                rows.forEach((row) => {
+
+                    const cols = row.querySelectorAll("td");
+
+                    // データ行のみ
+                    if(cols.length < 7) return;
+
+                    // 順位が数字じゃない行を除外
+                    const rank = cols[0]?.innerText.trim();
+
+                    if(isNaN(rank)) return;
+
+                    allData.push({
+                        category: source.name,
+                        rank: cols[0]?.innerText || "",
+                        name: cols[2]?.innerText || "",
+                        distance: parseFloat(cols[5]?.innerText) || 0,
+                        laps: cols[4]?.innerText || ""
+                    });
+
+                });
+
+            });
+
+        }catch(e){
+
+            console.error(source.name, e);
+
+        }
+
+    }
+
+    // 距離順ソート
+    allData.sort((a, b) => b.distance - a.distance);
+
+    // 表示
+    allData.forEach((item, index) => {
+
+        const tr = document.createElement("tr");
+
+if(item.category.includes('女子')){
+    tr.classList.add('female');
+}
+
+tr.innerHTML = `
+    <td>${index + 1}</td>
+    <td class="category">
+        ${item.category}
+    </td>
+    <td>${item.name}</td>
+    <td>${item.distance}</td>
+    <td>${item.laps}</td>
+`;
+
+        tbody.appendChild(tr);
+
+    });
+
+    document.getElementById("updated").innerText =
+        "最終更新: " + new Date().toLocaleTimeString();
+
+}
+
+// 名前検索
+document.getElementById("search").addEventListener("input", function(){
+
+    const keyword = this.value.toLowerCase();
+
+    document.querySelectorAll("#resultTable tbody tr").forEach(tr => {
+
+        const text = tr.innerText.toLowerCase();
+
+        tr.style.display =
+            text.includes(keyword) ? "" : "none";
+
+    });
+
+});
+
+// 初回読込
+loadData();
+
+</script>
+
+</body>
+</html>
