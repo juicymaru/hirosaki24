@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>弘前24時間走 部門横断ビュー</title>
+<title>弘前24時間走 横断ビュー</title>
 
 <style>
 body{
@@ -60,12 +60,13 @@ tr:nth-child(even){
     margin-bottom:10px;
     color:#666;
     font-size:14px;
+    font-weight:bold;
 }
 </style>
 </head>
 <body>
 
-<h1>弘前24時間走 部門横断ビュー</h1>
+<h1>弘前24時間走 横断ビュー</h1>
 
 <div class="updated" id="updated">
 更新中...
@@ -113,6 +114,7 @@ async function loadData(){
     tbody.innerHTML = "";
 
     const allData = [];
+    const errors = [];
 
     for(const source of sources){
 
@@ -124,12 +126,19 @@ async function loadData(){
                 encodeURIComponent(source.url);
 
             const response = await fetch(proxy);
+
+            if(!response.ok){
+                throw new Error("取得失敗");
+            }
+
             const html = await response.text();
 
             const parser = new DOMParser();
             const doc = parser.parseFromString(html, "text/html");
 
             const tables = doc.querySelectorAll("table");
+
+            let found = false;
 
             tables.forEach(table => {
 
@@ -142,10 +151,12 @@ async function loadData(){
                     // データ行のみ
                     if(cols.length < 7) return;
 
-                    // 順位が数字じゃない行を除外
+                    // 順位が数字じゃない行除外
                     const rank = cols[0]?.innerText.trim();
 
                     if(isNaN(rank)) return;
+
+                    found = true;
 
                     allData.push({
                         category: source.name,
@@ -159,9 +170,15 @@ async function loadData(){
 
             });
 
+            // データゼロなら失敗扱い
+            if(!found){
+                errors.push(source.name);
+            }
+
         }catch(e){
 
             console.error(source.name, e);
+            errors.push(source.name);
 
         }
 
@@ -175,26 +192,42 @@ async function loadData(){
 
         const tr = document.createElement("tr");
 
-if(item.category.includes('女子')){
-    tr.classList.add('female');
-}
+        if(item.category.includes('女子')){
+            tr.classList.add('female');
+        }
 
-tr.innerHTML = `
-    <td>${index + 1}</td>
-    <td class="category">
-        ${item.category}
-    </td>
-    <td>${item.name}</td>
-    <td>${item.distance}</td>
-    <td>${item.laps}</td>
-`;
+        tr.innerHTML = `
+            <td>${index + 1}</td>
+            <td class="category">
+                ${item.category}
+            </td>
+            <td>${item.name}</td>
+            <td>${item.distance}</td>
+            <td>${item.laps}</td>
+        `;
 
         tbody.appendChild(tr);
 
     });
 
-    document.getElementById("updated").innerText =
-        "最終更新: " + new Date().toLocaleTimeString();
+    // 更新表示
+    const updated = document.getElementById("updated");
+
+    if(errors.length > 0){
+
+        updated.innerHTML =
+            "⚠ 取得失敗: " + errors.join(" / ");
+
+        updated.style.color = "red";
+
+    }else{
+
+        updated.innerHTML =
+            "最終更新: " + new Date().toLocaleTimeString();
+
+        updated.style.color = "#666";
+
+    }
 
 }
 
